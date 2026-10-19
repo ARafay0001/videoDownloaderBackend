@@ -68,7 +68,6 @@ const friendly = (m = "") => {
     : /not installed/i.test(m) ? m
     : "We couldn't read this link. Check the URL and try again.";
 };
-
 /* ------------------------------------ info ------------------------------------ */
 app.get("/api/info", async (req, res) => {
   const url = safeUrl(req.query.url);
