@@ -18,6 +18,24 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { writeFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+
+/* Optional YouTube cookies. Back4App limits each env var to 1023 chars, so the cookies file
+   is gzipped, base64'd and split across YT_C1, YT_C2, YT_C3 ... (joined in order here). */
+const COOKIES = "/tmp/cookies.txt";
+let cookieArgs = [];
+try {
+  let b64 = "";
+  for (let i = 1; i <= 30 && process.env[`YT_C${i}`]; i++) b64 += process.env[`YT_C${i}`].trim();
+  if (b64) {
+    writeFileSync(COOKIES, gunzipSync(Buffer.from(b64, "base64")));
+    cookieArgs = ["--cookies", COOKIES];
+    console.log("YouTube cookies loaded");
+  }
+} catch (e) {
+  console.error("Could not load YouTube cookies:", e.message);
+}
 
 const app = express();
 app.set("trust proxy", 1);
@@ -63,17 +81,18 @@ const run = (args, { timeout = 60000 } = {}) =>
 const friendly = (m = "") => {
   console.error("yt-dlp error:", m);
   return /private|login|sign in|cookies/i.test(m) ? "This video is private or needs a login."
-    : /unsupported url/i.test(m) ? "This site or link isn't supported."
+    : /unsupported url/i.test(m) ? "This site or link isn’t supported."
     : /not available|removed|unavailable|404/i.test(m) ? "This video is unavailable or was removed."
     : /not installed/i.test(m) ? m
-    : "We couldn't read this link. Check the URL and try again.";
+    : "We couldn’t read this link. Check the URL and try again.";
 };
+
 /* ------------------------------------ info ------------------------------------ */
 app.get("/api/info", async (req, res) => {
   const url = safeUrl(req.query.url);
   if (!url) return res.status(400).json({ error: "Invalid link." });
   try {
-    const j = JSON.parse(await run(["-J", "--no-playlist", "--no-warnings", "--", url]));
+    const j = JSON.parse(await run(["-J", "--no-playlist", "--no-warnings", ...cookieArgs, "--", url]));
     const fs = j.formats || [];
     const have = new Set(fs.filter((f) => f.vcodec && f.vcodec !== "none").map((f) => f.height).filter(Boolean));
     const video = HEIGHTS.filter((h) => have.has(h)).map((h) => {
@@ -99,7 +118,7 @@ app.get("/api/download", async (req, res) => {
   const id = String(req.query.id || "");
   if (!url) return res.status(400).json({ error: "Invalid link." });
 
-  const args = ["--no-playlist", "--no-warnings", "--max-filesize", `${MAX_FILE_MB}M`, "-o", "%(title).80s.%(ext)s", "--restrict-filenames"];
+  const args = [...cookieArgs, "--no-playlist", "--no-warnings", "--max-filesize", `${MAX_FILE_MB}M`, "-o", "%(title).80s.%(ext)s", "--restrict-filenames"];
   if (type === "audio") {
     const a = AUDIO.find((x) => x.id === id);
     if (!a) return res.status(400).json({ error: "Unknown audio format." });
