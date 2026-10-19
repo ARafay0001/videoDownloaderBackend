@@ -60,12 +60,14 @@ const run = (args, { timeout = 60000 } = {}) =>
     p.on("close", (code) => { clearTimeout(t); code === 0 ? resolve(out) : reject(new Error(err.split("\n").filter(Boolean).pop() || "yt-dlp failed")); });
   });
 
-const friendly = (m = "") =>
-  /private|login|sign in|cookies/i.test(m) ? "This video is private or needs a login."
-  : /unsupported url/i.test(m) ? "This site or link isn’t supported."
-  : /not available|removed|unavailable|404/i.test(m) ? "This video is unavailable or was removed."
-  : /not installed/i.test(m) ? m
-  : "We couldn’t read this link. Check the URL and try again.";
+const friendly = (m = "") => {
+  console.error("yt-dlp error:", m);
+  return /private|login|sign in|cookies/i.test(m) ? "This video is private or needs a login."
+    : /unsupported url/i.test(m) ? "This site or link isn't supported."
+    : /not available|removed|unavailable|404/i.test(m) ? "This video is unavailable or was removed."
+    : /not installed/i.test(m) ? m
+    : "We couldn't read this link. Check the URL and try again.";
+};
 
 /* ------------------------------------ info ------------------------------------ */
 app.get("/api/info", async (req, res) => {
